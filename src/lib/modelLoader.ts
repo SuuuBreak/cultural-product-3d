@@ -7,11 +7,12 @@ export async function loadModel(files:File[], onProgress:(n:number)=>void):Promi
  const urls=new Map(files.map(f=>[f.name,URL.createObjectURL(f)]))
  const manager=new LoadingManager()
  manager.setURLModifier(url=>{
-  if(url.startsWith('blob:')||url.startsWith('data:'))return url
+  if(url.startsWith('data:'))return url
   const name=decodeURIComponent(url.split('/').pop()??'')
   const local=urls.get(name)
-  if(!local)throw new Error(`缺少配套资源：${name}，请与模型一同选择。`)
-  return local
+  if(local)return local
+  if(Array.from(urls.values()).includes(url))return url
+  throw new Error(`缺少配套资源：${name}，请与模型一同选择。`)
  })
  manager.onProgress=(_,loaded,total)=>onProgress(Math.round(loaded/total*100))
  try {
