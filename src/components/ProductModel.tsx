@@ -1,76 +1,83 @@
-import { useMemo, useRef, type ReactNode } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { Html, Line } from '@react-three/drei'
-import { Shape, Path, Vector2, Group, MathUtils } from 'three'
-import { cloudTexture, fabricTexture, surface } from '../lib/materials'
-import { hotspots, type MaterialMode } from '../data/product'
-const gold={color:'#bc9252',metalness:0.85,roughness:0.28}
-function Ellipsoid({position=[0,0,0],scale=[1,1,1],color='#161719',rotation=[0,0,0],plush=false}:{position?:[number,number,number];scale?:[number,number,number];color?:string;rotation?:[number,number,number];plush?:boolean}){
- return <mesh position={position} scale={scale} rotation={rotation} castShadow><sphereGeometry args={[1,32,24]}/><meshStandardMaterial color={color} roughness={plush?.98:.7} bumpMap={plush?fabricTexture():undefined} bumpScale={plush?.04:0}/></mesh>
+import { useEffect, useMemo } from 'react'
+import { BackSide, DoubleSide, TorusGeometry } from 'three'
+import { type MaterialMode } from '../data/product'
+import { garmentGeometry, garmentPoint, panelGeometry, collarFibres } from '../lib/modelGeometry'
+import { fabricTexture } from '../lib/materials'
+import RefinedHead from './model/RefinedHead'
+import { ClothMaterial, CoinPendant, Crown, Part, RingAssembly, Seam, SoftShape, TallyCharm, gold } from './model/ModelParts'
+
+function FurCollar() {
+  const geometry = useMemo(() => collarFibres(), [])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return <group>
+    <mesh position={[0, 1.84, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, .72, 1]}><torusGeometry args={[.40, .075, 10, 48]} /><meshPhysicalMaterial color="#181c16" roughness={1} sheen={.2} sheenColor="#6c7763" bumpMap={fabricTexture()} bumpScale={.01} /></mesh>
+    <mesh geometry={geometry} receiveShadow raycast={() => {}}><meshStandardMaterial color="#ffffff" vertexColors roughness={1} side={DoubleSide} /></mesh>
+  </group>
 }
-function Part({children,offset,exploded}:{children:ReactNode;offset:[number,number,number];exploded:boolean}){
- const ref=useRef<Group>(null)
- useFrame((_,dt)=>{if(ref.current)offset.forEach((v,i)=>{const key=(['x','y','z'] as const)[i];ref.current!.position[key]=MathUtils.damp(ref.current!.position[key],exploded?v:0,5,dt)})})
- return <group ref={ref}>{children}</group>
+function Cape({ material }: { material: MaterialMode }) {
+  const geometry = useMemo(() => garmentGeometry(true), [])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  const arc = Math.PI * 2 - 1.32
+  const hem = Array.from({ length: 55 }, (_, i) => garmentPoint(.99, .66 + i / 54 * arc, true))
+  const upperHem = Array.from({ length: 55 }, (_, i) => garmentPoint(.93, .66 + i / 54 * arc, true))
+  return <group>
+    <mesh geometry={geometry} castShadow receiveShadow><ClothMaterial mode={material} clouds /></mesh>
+    <mesh geometry={geometry} scale={[.989, 1, .989]}><meshStandardMaterial color="#35251e" roughness={1} side={BackSide} /></mesh>
+    <Seam points={hem} radius={.013} color="#a48a54" />
+    <Seam points={upperHem} radius={.005} color="#b59b66" />
+    {[.66, .66 + arc].map(theta => <Seam key={theta} points={Array.from({ length: 15 }, (_, i) => garmentPoint(i / 14, theta, true))} radius={.012} color="#b69b61" />)}
+    <FurCollar />
+  </group>
 }
-function Coin(){
- const shape=useMemo(()=>{const s=new Shape();s.absarc(0,0,.195,0,Math.PI*2,false);const hole=new Path();hole.moveTo(-.062,-.062);hole.lineTo(-.062,.062);hole.lineTo(.062,.062);hole.lineTo(.062,-.062);hole.closePath();s.holes.push(hole);return s},[])
- return <group position={[0,1.37,.542]}><mesh castShadow><extrudeGeometry args={[shape,{depth:.045,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.009,bevelThickness:.008}]}/><meshStandardMaterial {...gold}/></mesh><mesh position={[0,0,.059]}><torusGeometry args={[.172,.007,8,48]}/><meshStandardMaterial {...gold}/></mesh>{[-1,1].map(v=><group key={v}><mesh position={[v*.116,0,.06]}><boxGeometry args={[.035,.065,.006]}/><meshStandardMaterial color="#6e4a21"/></mesh><mesh position={[0,v*.12,.06]}><boxGeometry args={[.06,.016,.006]}/><meshStandardMaterial color="#6e4a21"/></mesh></group>)}</group>
+function Robe({ material }: { material: MaterialMode }) {
+  const geometry = useMemo(() => garmentGeometry(false), [])
+  const lapel = useMemo(() => panelGeometry(
+    [[-.27, 1.77, .245], [-.05, 1.53, .355], [.20, 1.32, .39]],
+    [[-.18, 1.78, .27], [.035, 1.54, .38], [.27, 1.35, .38]],
+  ), [])
+  const apron = useMemo(() => panelGeometry(
+    [[-.17, 1.08, .365], [-.26, .81, .423], [-.34, .57, .41]],
+    [[.13, 1.08, .37], [.19, .81, .441], [.22, .57, .456]],
+  ), [])
+  const apronUv = apron.getAttribute('uv')
+  if (apronUv.getX(0) === 0) for (let i = 0; i < apronUv.count; i++) apronUv.setX(i, .33 + apronUv.getX(i) * .33)
+  useEffect(() => () => { geometry.dispose(); lapel.dispose(); apron.dispose() }, [geometry, lapel, apron])
+  const beltGeometry = useMemo(() => {
+    const g = new TorusGeometry(.445, .052, 4, 64); return g
+  }, [])
+  useEffect(() => () => beltGeometry.dispose(), [beltGeometry])
+  return <group>
+    <mesh geometry={geometry} castShadow receiveShadow><ClothMaterial mode={material} /></mesh>
+    <mesh geometry={lapel} castShadow><meshPhysicalMaterial color="#3e3629" side={DoubleSide} roughness={.89} bumpMap={fabricTexture()} bumpScale={.01} sheen={.4} /></mesh>
+    <mesh geometry={apron} castShadow><ClothMaterial mode={material} clouds /></mesh>
+    <Seam points={[[-.28, 1.77, .25], [-.05, 1.53, .366], [.21, 1.32, .40]]} radius={.008} />
+    <Seam points={[[.27, 1.77, .25], [.14, 1.60, .33], [-.13, 1.38, .40]]} radius={.007} color="#8e7545" />
+    <Seam points={[[-.17, 1.08, .382], [-.26, .81, .436], [-.34, .57, .422], [.22, .57, .468], [.19, .81, .454]]} radius={.008} />
+    <Seam points={Array.from({ length: 65 }, (_, i) => garmentPoint(.99, i / 64 * Math.PI * 2, false))} radius={.012} />
+    <mesh geometry={beltGeometry} position={[0, 1.095, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, .78, 1]} castShadow><meshStandardMaterial color="#443426" roughness={.78} bumpMap={fabricTexture()} bumpScale={.014} /></mesh>
+    <Seam points={[[-.39, 1.10, .18], [-.22, 1.12, .335], [0, 1.12, .367], [.26, 1.12, .31], [.4, 1.1, .13]]} radius={.009} color="#a0854c" />
+    <group position={[-.02, 1.095, .398]}><mesh><boxGeometry args={[.14, .095, .027]} /><meshStandardMaterial {...gold} /></mesh><mesh position={[0, 0, .018]}><boxGeometry args={[.09, .049, .01]} /><meshStandardMaterial color="#32291f" roughness={.7} /></mesh></group>
+    {[-1, 1].map(side => <group key={side}>
+      <group position={[side * .48, 1.37, .015]} rotation={[0, 0, side * .36]}>
+        <mesh castShadow receiveShadow><cylinderGeometry args={[.14, .20, .56, 32, 4]} /><ClothMaterial mode={material} clouds /></mesh>
+        <mesh position={[0, -.275, 0]}><cylinderGeometry args={[.202, .205, .052, 32]} /><meshStandardMaterial color="#9a804d" roughness={.7} /></mesh>
+        <SoftShape position={[0, -.36, .035]} scale={[.128, .15, .135]} color="#dfbaa0" />
+        <Seam points={[[.04 * side, -.32, .16], [.045 * side, -.36, .166], [.03 * side, -.4, .15]]} radius={.0028} color="#b28a6a" />
+      </group>
+      <SoftShape position={[side * .24, .33, .015]} scale={[.20, .28, .20]} />
+      <SoftShape position={[side * .24, .14, .13]} scale={[.21, .16, .29]} color="#23231e" />
+      <mesh position={[side * .24, .005, .10]} scale={[1, 1, 1.45]}><cylinderGeometry args={[.205, .20, .055, 32]} /><meshStandardMaterial color="#252720" roughness={.95} /></mesh>
+      <Seam points={[[side * .24 - .16, .17, .30], [side * .24, .215, .40], [side * .24 + .16, .17, .30]]} radius={.009} />
+      <Seam points={[[side * .24 - .10, .29, .20], [side * .24, .32, .237], [side * .24 + .10, .29, .20]]} radius={.006} color="#9c834e" />
+    </group>)}
+  </group>
 }
-function Tassel(){return <group position={[0,1.07,.56]}><Ellipsoid scale={[.043,.07,.043]} color="#762e27"/>{Array.from({length:15},(_,i)=><mesh key={i} position={[(i-7)*.009,-.15+(Math.sin(i)*.01),0]} rotation={[0,0,(i-7)*.016]}><cylinderGeometry args={[.006,.004,.25,5]}/><meshStandardMaterial color="#8e302a" roughness={1}/></mesh>)}</group>}
-function Head(){
- const locks=useMemo(()=>Array.from({length:26},(_,i)=>{const angle=i/26*Math.PI*2;return {position:[Math.cos(angle)*.66,2.63+Math.sin(angle)*.61,0.06] as [number,number,number],rotation:[0,0,angle-.6] as [number,number,number],scale:[.22,.38,.38] as [number,number,number]}}),[])
- return <group>
-  <Ellipsoid position={[0,2.51,-.05]} scale={[.85,.81,.65]} plush/>
-  <Ellipsoid position={[0,2.34,.26]} scale={[.73,.62,.52]} color="#e3c1a5" plush/>
-  {[-1,1].map(s=><group key={s}>
-   <Ellipsoid position={[s*.72,2.31,.21]} scale={[.17,.24,.17]} color="#d7b092"/>
-   <Ellipsoid position={[s*.3,2.36,.702]} scale={[.211,.265,.07]} color="#f2e4ce"/>
-   <Ellipsoid position={[s*.3,2.34,.758]} scale={[.126,.187,.035]} color="#39251e"/>
-   <Ellipsoid position={[s*.3,2.29,.785]} scale={[.09,.104,.012]} color="#a17235"/>
-   <Ellipsoid position={[s*.28,2.39,.79]} scale={[.071,.117,.015]} color="#171516"/>
-   <Ellipsoid position={[s*.263,2.44,.81]} scale={[.036,.044,.01]} color="#fff9e6"/>
-   <Ellipsoid position={[s*.34,2.29,.81]} scale={[.018,.02,.008]} color="#e9c579"/>
-   <Ellipsoid position={[s*.47,2.13,.673]} scale={[.1,.045,.009]} color="#cd9181"/>
-   <Line points={[[s*.49,2.61,.66],[s*.28,2.66,.72],[s*.17,2.62,.71]]} color="#262222" lineWidth={5}/>
-  </group>)}
-  <Ellipsoid position={[0,2.18,.786]} scale={[.035,.026,.022]} color="#c69580"/>
-  <Line points={[[-.045,2.075,.722],[0,2.065,.73],[.045,2.075,.722]]} color="#a16a56" lineWidth={1}/>
-  {locks.map((v,i)=><Ellipsoid key={i} {...v} plush/>)}
-  {Array.from({length:9},(_,i)=><Ellipsoid key={i} position={[(i-4)*.145,2.79+Math.sin(i*1.7)*.07,.56]} rotation={[.05,0,(i-4)*-.21+.15]} scale={[.16,.36+(i%3)*.025,.18]} plush/>)}
-  <Ellipsoid position={[.06,3.27,-.08]} scale={[.3,.26,.3]} plush/>
- </group>
-}
-export default function ProductModel({material,exploded,showHotspots,onHotspot,selected}:{material:MaterialMode;exploded:boolean;showHotspots:boolean;onHotspot:(id:string)=>void;selected:string|null}){
- const capePoints=useMemo(()=>[new Vector2(.38,1.72),new Vector2(.5,1.6),new Vector2(.68,1.32),new Vector2(.84,.92),new Vector2(.95,.72)],[])
- return <group>
-  <Part offset={[0,1.1,0]} exploded={exploded}><Head/>
-   <group position={[0,3.17,.64]}><mesh rotation={[0,0,.18]}><torusGeometry args={[.22,.027,12,48,Math.PI]}/><meshStandardMaterial {...gold}/></mesh><mesh position={[0,.06,.03]} rotation={[0,0,-.2]}><boxGeometry args={[.15,.24,.035]}/><meshStandardMaterial {...gold}/></mesh><Ellipsoid position={[0,.08,.056]} scale={[.043,.06,.016]} color="#29211b"/><Line points={[[-.34,0,0],[0,-.055,.055],[.34,0,0]]} color="#bb965b" lineWidth={4}/></group>
-  </Part>
-  <Part offset={[0,1.9,-.2]} exploded={exploded}>
-   <mesh position={[0,3.71,-.05]} rotation={[0,.18,0]} castShadow><torusGeometry args={[.28,.035,16,64]}/><meshStandardMaterial {...gold}/></mesh>
-   <mesh position={[0,3.36,-.05]} castShadow><boxGeometry args={[.12,.27,.065]}/><meshStandardMaterial color="#17191a" roughness={.85}/></mesh>
-   <mesh position={[.25,3.49,-.03]} rotation={[0,0,.55]}><torusGeometry args={[.1,.022,12,32]}/><meshStandardMaterial {...gold}/></mesh>
-  </Part>
-  <Part offset={[0,0,-1.2]} exploded={exploded}>
-   <mesh castShadow><latheGeometry args={[capePoints,80,.65,Math.PI*2-1.3]}/><meshStandardMaterial {...surface(material)} color={material==='original'?'#ffffff':surface(material).color} map={material==='original'?cloudTexture():undefined} side={2}/></mesh>
-   <mesh position={[0,.73,0]} rotation={[Math.PI/2,0,.72]}><torusGeometry args={[.95,.014,8,80,Math.PI*1.75]}/><meshStandardMaterial {...gold}/></mesh>
-  </Part>
-  <Part offset={[0,-.25,0]} exploded={exploded}>
-   <mesh position={[0,1.08,0]} castShadow><cylinderGeometry args={[.38,.55,1.15,48]}/><meshStandardMaterial {...surface(material)}/></mesh>
-   <mesh position={[0,.55,0]}><cylinderGeometry args={[.55,.56,.045,48]}/><meshStandardMaterial {...gold}/></mesh>
-   <mesh position={[0,1.1,0]}><cylinderGeometry args={[.435,.435,.075,48]}/><meshStandardMaterial color="#907343" roughness={.6}/></mesh>
-   {[-1,1].map(s=><group key={s}>
-    <group position={[s*.49,1.3,.07]} rotation={[0,0,s*.45]}><mesh castShadow><cylinderGeometry args={[.17,.23,.65,32]}/><meshStandardMaterial {...surface(material)}/></mesh><mesh position={[0,-.32,0]}><cylinderGeometry args={[.232,.233,.025,32]}/><meshStandardMaterial {...gold}/></mesh><Ellipsoid position={[0,-.38,0]} scale={[.145,.18,.14]} color="#dfbaa0" plush/></group>
-    <Ellipsoid position={[s*.25,.33,.07]} scale={[.21,.32,.22]} plush/>
-    <Ellipsoid position={[s*.25,.15,.19]} scale={[.22,.17,.32]} plush/>
-    <Line points={[[s*.25-.15,.16,.39],[s*.25,.21,.47],[s*.25+.15,.16,.39]]} color="#a08451" lineWidth={3}/>
-   </group>)}
-   <Line points={[[-.28,1.67,.29],[0,1.46,.43],[.28,1.67,.29]]} color="#a58a55" lineWidth={3}/>
-  </Part>
-  <Part offset={[0,.05,1]} exploded={exploded}><Coin/><Tassel/>
-   <group position={[.46,1.12,.44]} rotation={[0,-.2,-.15]}><mesh castShadow><boxGeometry args={[.17,.35,.045]}/><meshStandardMaterial {...gold}/></mesh><Line points={[[-.06,.14,.028],[.06,.14,.028],[.06,-.14,.028],[-.06,-.14,.028],[-.06,.14,.028]]} color="#78582d" lineWidth={1.5}/><mesh position={[0,.22,0]}><torusGeometry args={[.045,.012,8,24]}/><meshStandardMaterial {...gold}/></mesh></group>
-  </Part>
-  {showHotspots&&!exploded&&hotspots.map((h,i)=><Html key={h.id} position={h.position} center zIndexRange={[20,0]} occlude><button className={`hotspot ${selected===h.id?'selected':''}`} aria-label={h.label} onClick={e=>{e.stopPropagation();onHotspot(h.id)}}><span>{String(i+1).padStart(2,'0')}</span><em>{h.label}</em></button></Html>)}
- </group>
+export default function ProductModel({ material, exploded }: { material: MaterialMode; exploded: boolean }) {
+  return <group name="momo-refined-concept">
+    <Part offset={[0, 1.06, 0]} exploded={exploded}><RefinedHead /><Crown /></Part>
+    <Part offset={[0, 1.9, -.2]} exploded={exploded}><RingAssembly /></Part>
+    <Part offset={[0, 0, -1.2]} exploded={exploded}><Cape material={material} /></Part>
+    <Part offset={[0, -.25, 0]} exploded={exploded}><Robe material={material} /></Part>
+    <Part offset={[0, .05, 1]} exploded={exploded}><CoinPendant /><TallyCharm /></Part>
+  </group>
 }
