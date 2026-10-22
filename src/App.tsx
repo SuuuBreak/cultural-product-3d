@@ -24,6 +24,7 @@ export default function App(){
  }
  async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await viewer.current?.requestFullscreen()}catch{setIsError(true);setStatus('当前浏览器不支持全屏，请使用浏览器全屏模式。')}}
  return <main>
+  <a href="/" style={{position:'fixed',bottom:14,right:18,zIndex:100,padding:'10px 16px',background:'#171918ed',border:'1px solid #b99a6455',color:'#dac399',fontSize:12}}>← 返回沉浸叙事</a>
   <header className="topbar"><a className="brand" href="#" aria-label="寻秦数字展厅首页"><span className="seal">秦</span><span>寻秦<span className="brand-en">THE SEVEN WOVEN SPRITES</span></span></a><nav aria-label="主导航"><a className="active" href="#experience">产品探索 <i/></a><a href="#story" onClick={()=>setTab('design')}>设计叙事</a><a href="#story" onClick={()=>setTab('cmf')}>材质与工艺</a></nav><span className="edition">DIGITAL COLLECTION <b>001 / QIN</b></span></header>
   <section id="experience" className={`exhibition light-${light}`} ref={viewer}>
    <div className="viewer"><ProductViewer model={model} material={material} light={light} exploded={exploded} hotspots={showHotspots} selected={selected} onHotspot={id=>{setSelected(id);setAuto(false)}} command={command} auto={auto} onInteract={()=>setAuto(false)} onFocus={point=>{setAuto(false);setCommand(c=>({...c,tick:c.tick+1,point}))}}/></div>
